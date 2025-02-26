@@ -25,11 +25,14 @@ The system is composed of four main components:
 3. **API Server (`main.py`)**: FastAPI-based interface for external applications
 4. **Streamlit Frontend (`medicos-frontend.py`)**: Web interface for easy interaction with the system
 
+## Backend Architecture
+<img width="640" src="https://github.com/karandomguy/medicos/blob/main/architecture.png" />
+
 ## Sample Images
-<img width="1440" alt="Screenshot 2025-02-26 at 8 34 40 PM" src="https://github.com/user-attachments/assets/f2e0e2d0-f99e-4e43-b492-318bc9457e28" />
+<img width="720" alt="Screenshot 2025-02-26 at 8 34 40 PM" src="https://github.com/user-attachments/assets/f2e0e2d0-f99e-4e43-b492-318bc9457e28" />
 
 
-<img width="1440" alt="Screenshot 2025-02-26 at 8 35 03 PM" src="https://github.com/user-attachments/assets/5508e0df-f163-4ca4-8cdd-2e1b2f9644b9" />
+<img width="720" alt="Screenshot 2025-02-26 at 8 35 03 PM" src="https://github.com/user-attachments/assets/5508e0df-f163-4ca4-8cdd-2e1b2f9644b9" />
 
 ## Prerequisites
 
