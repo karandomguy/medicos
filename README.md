@@ -14,14 +14,16 @@ medicos is a Retrieval-Augmented Generation (RAG) system designed to provide acc
 - **Medical-Specific Embeddings**: Uses domain-specific embedding models for better retrieval accuracy
 - **Source Attribution**: Provides transparent source attribution for all information
 - **RESTful API**: Exposes functionality through a FastAPI-based REST API
+- **Streamlit Frontend**: User-friendly web interface for interacting with the system
 
 ## System Architecture
 
-The system is composed of three main components:
+The system is composed of four main components:
 
 1. **Document Processor (`document_processing.py`)**: Handles document loading, chunking, and indexing
 2. **RAG System (`rag_system.py`)**: Core component that manages retrieval, validation, generation, and caching
 3. **API Server (`main.py`)**: FastAPI-based interface for external applications
+4. **Streamlit Frontend (`medicos-frontend.py`)**: Web interface for easy interaction with the system
 
 ## Prerequisites
 
@@ -36,7 +38,7 @@ The system is composed of three main components:
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/medicos.git
+git clone https://github.com/karandomguy/medicos.git
 cd medicos
 ```
 
@@ -94,10 +96,18 @@ print(response["answer"])
 ### Running the API Server
 
 ```bash
-python main.py
+uvicorn main:app --reload
 ```
 
 The API will be available at http://localhost:8000
+
+### Running the Streamlit Frontend
+
+```bash
+streamlit run medicos-frontend.py
+```
+
+The web interface will be available at http://localhost:8501
 
 ### API Endpoints
 
@@ -107,6 +117,17 @@ The API will be available at http://localhost:8000
 
 - **GET /api/health**: Check system health
   - Returns: System status
+
+## Streamlit Frontend
+
+The system includes a user-friendly Streamlit web interface that provides:
+
+- Simple question input interface
+- Configurable settings for Google search fallback and source retrieval
+- Comprehensive display of answers with source attribution
+- Search history tracking and previous result viewing
+- Tabbed interface for exploring multiple sources
+- Clear indication of whether answers come from the knowledge base or external search
 
 ## System Flow
 
@@ -123,18 +144,3 @@ The API will be available at http://localhost:8000
    - Chunk documents into manageable segments
    - Generate embeddings for each chunk
    - Store in vector database
-
-## Customization
-
-- **Embedding Model**: Change `embedding_model_name` in `MedicalRAG` initialization
-- **LLM Model**: Change `llm_model` in `MedicalRAG` initialization
-- **Chunk Size**: Modify `chunk_size` and `chunk_overlap` in `DocumentProcessor`
-- **Cache Expiry**: Adjust `cache_expiry_days` in `MedicalRAG`
-
-## License
-
-[Add your license information here]
-
-## Contributors
-
-[Add contributor information here]
