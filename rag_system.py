@@ -9,7 +9,6 @@ import json
 import time
 from datetime import datetime
 
-# Load Environment Variables
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -25,10 +24,10 @@ class MedicalRAG:
                  llm_model="llama3-70b-8192",
                  cache_expiry_days=7):
         
-        # Initialize the sentence transformer for embeddings
+        # Setup embedding model
         self.embedding_model = SentenceTransformer(embedding_model_name)
         
-        # Initialize ChromaDB client
+        # Connect to existing ChromaDB or create a new one
         try:
             self.chroma_client = chromadb.PersistentClient(path=db_path)
             self.collection = self.chroma_client.get_collection(name=collection_name)
@@ -42,7 +41,7 @@ class MedicalRAG:
                 metadata={"hnsw:space": "cosine"}
             )
             
-        # Try to create/get cache collection for validated queries
+        # Setup cache collection
         try:
             self.cache_collection = self.chroma_client.get_collection(name=f"{collection_name}_cache")
             print(f"Connected to existing cache collection: {collection_name}_cache")
@@ -53,20 +52,20 @@ class MedicalRAG:
                 metadata={"hnsw:space": "cosine"}
             )
         
-        # Initialize Groq client
+        # Setup LLM client
         self.groq_client = groq.Client(api_key=GROQ_API_KEY)
         self.llm_model = llm_model
         self.cache_expiry_days = cache_expiry_days
     
     def google_search(self, query, max_results=5):
-        """Fetch relevant articles using Google API."""
+        """Run Google search and return results"""
         url = "https://customsearch.googleapis.com/customsearch/v1"
         params = {
             'q': query,
             'cx': GOOGLE_CSE_ID,
             'key': GOOGLE_API_KEY,
             'num': max_results,
-            'safe': 'active'  # Safe search
+            'safe': 'active'
         }
         try:
             resp = requests.get(url, params=params, timeout=10)
@@ -96,22 +95,22 @@ class MedicalRAG:
         return results
     
     def search_chroma_db(self, query, top_k=3, collection=None):
-        """Retrieve the most relevant documents from ChromaDB using embeddings."""
+        """Find relevant documents in ChromaDB"""
         if collection is None:
             collection = self.collection
             
         try:
-            # Generate embedding for the query
+            # Create query embedding
             query_embedding = self.embedding_model.encode(query)
             
-            # Query the vector database
+            # Search the database
             results = collection.query(
                 query_embeddings=[query_embedding.tolist()],
                 n_results=top_k
             )
             
             if results["documents"] and len(results["documents"]) > 0:
-                # Format results with metadata
+                # Format results
                 formatted_results = []
                 for i, doc in enumerate(results["documents"][0]):
                     metadata = results["metadatas"][0][i] if "metadatas" in results and i < len(results["metadatas"][0]) else {}
@@ -128,22 +127,22 @@ class MedicalRAG:
                 
                 return formatted_results, results["distances"][0] if "distances" in results else None
             
-            return [], None  # No relevant documents found
+            return [], None  # No results found
         
         except Exception as e:
             print(f"Error searching ChromaDB: {e}")
             return [], None
     
     def check_query_cache(self, query):
-        """Check if we have a cached response for a similar query."""
+        """Check if we already have a similar query cached"""
         cached_results, distances = self.search_chroma_db(query, top_k=1, collection=self.cache_collection)
         
-        # Check if we found a similar query with good similarity
-        if cached_results and distances and distances[0] < 0.05:  # Threshold for similarity
+        # Check for similar queries
+        if cached_results and distances and distances[0] < 0.05:  # Similarity threshold
             cached_data = json.loads(cached_results[0]["content"])
             timestamp = cached_data.get("timestamp", 0)
             
-            # Check if cache is still valid (not expired)
+            # Check if cache is still valid
             if (time.time() - timestamp) < (self.cache_expiry_days * 86400):
                 print(f"Using cached response (similarity: {distances[0]:.4f})")
                 return cached_data
@@ -151,19 +150,19 @@ class MedicalRAG:
         return None
     
     def store_in_cache(self, query, response_data):
-        """Store the query and response in the cache."""
+        """Save query and response to cache"""
         try:
-            # Add timestamp to the data
+            # Add timestamp
             response_data["timestamp"] = time.time()
             json_data = json.dumps(response_data)
             
-            # Create a unique ID for the cache entry
+            # Create unique ID
             cache_id = f"cache_{int(time.time())}_{hash(query) % 10000}"
             
-            # Generate embedding for the query
+            # Create embedding
             query_embedding = self.embedding_model.encode(query)
             
-            # Store in cache collection
+            # Save to cache
             self.cache_collection.add(
                 ids=[cache_id],
                 embeddings=[query_embedding.tolist()],
@@ -182,13 +181,13 @@ class MedicalRAG:
             print(f"Error storing in cache: {e}")
     
     def generate_answer(self, question, context_docs, source_type="Unknown"):
-        """Use Groq API to generate an answer based on retrieved context."""
+        """Generate answer using LLM based on context"""
         
-        # Format context from documents
+        # Format context
         context = ""
         for i, doc in enumerate(context_docs):
             if isinstance(doc, dict) and "content" in doc:
-                # For ChromaDB results
+                # Format ChromaDB results
                 title = doc.get("title", "Document")
                 source = doc.get("source", "Unknown")
                 url = doc.get("url", "#")
@@ -196,7 +195,7 @@ class MedicalRAG:
                 
                 context += f"[{i+1}] {title}\nSource: {source} ({url})\n{content}\n\n"
             elif isinstance(doc, dict) and "snippet" in doc:
-                # For Google results
+                # Format Google results
                 title = doc.get("title", "")
                 source = doc.get("domain", "")
                 url = doc.get("link", "")
@@ -204,7 +203,7 @@ class MedicalRAG:
                 
                 context += f"[{i+1}] {title}\nSource: {source} ({url})\n{snippet}\n\n"
             else:
-                # For plain text
+                # Plain text
                 context += f"[{i+1}] {doc}\n\n"
         
         prompt = f"""You are medicos, a medical AI assistant that provides accurate, well-referenced medical information.
@@ -253,7 +252,7 @@ Your answer should be structured as follows:
             return []
             
         if isinstance(sources[0], dict) and "content" in sources[0]:
-            # For ChromaDB results
+            # Format ChromaDB results
             return [
                 {
                     "title": source.get("title", "Unknown document"),
@@ -263,7 +262,7 @@ Your answer should be structured as follows:
                 for source in sources
             ]
         elif isinstance(sources[0], dict) and "snippet" in sources[0]:
-            # For Google results
+            # Format Google results
             return [
                 {
                     "title": result.get("title", ""),
@@ -274,22 +273,22 @@ Your answer should be structured as follows:
                 for result in sources
             ]
         else:
-            # For plain text or other formats
+            # Format plain text
             return [{"title": f"Result {i+1}", "source": str(source), "url": "#"} for i, source in enumerate(sources)]
     
     def validate_database_response(self, question, chroma_results, similarity_threshold=0.3):
-        """Validate if the database results are actually relevant to the question."""
+        """Check if database results are actually relevant"""
         if not chroma_results:
             return False
             
-        # Check for similarity scores if available
+        # Check similarity scores
         _, distances = self.search_chroma_db(question)
         
         if distances and distances[0] > similarity_threshold:
             print(f"Database results found but relevance too low: {distances[0]}")
             return False
             
-        # Use LLM to check relevance
+        # Use LLM to verify relevance
         validation_prompt = f"""You are evaluating if a database response is relevant to a user query.
 
 Query: {question}
@@ -321,18 +320,18 @@ Answer only 'YES' if it is relevant and informative for the query, or 'NO' if it
             return True
     
     def process_medical_query(self, question, use_google_fallback=True, top_k=5):
-        """Handles the hybrid RAG process with validation layer."""
+        """Main method to handle medical queries"""
         
-        # Step 0: Check Cache for Similar Queries
+        # Check cache first
         cached_response = self.check_query_cache(question)
         if cached_response:
             print("Using cached response")
             return cached_response
         
-        # Step 1: Try Searching ChromaDB
+        # Try ChromaDB first
         chroma_results, _ = self.search_chroma_db(question, top_k)
         
-        # Step 1.5: Validate Database Results
+        # Validate results
         if chroma_results:
             is_valid = self.validate_database_response(question, chroma_results)
             if is_valid:
@@ -340,12 +339,11 @@ Answer only 'YES' if it is relevant and informative for the query, or 'NO' if it
                 source_type = "ChromaDB (Pre-stored Medical Docs)"
                 formatted_sources = self.format_sources(chroma_results)
             else:
-                # Results exist but aren't relevant, fall back to Google
+                # Results not relevant, use fallback
                 chroma_results = []
         
-        # Fall back to Google Search if no valid ChromaDB results and fallback is enabled
+        # Use Google if needed
         if not chroma_results and use_google_fallback:
-            # Step 2: Search Google
             google_results = self.google_search(question, max_results=top_k)
             
             if google_results:
@@ -353,20 +351,19 @@ Answer only 'YES' if it is relevant and informative for the query, or 'NO' if it
                 source_type = "Google API (Live Search)"
                 formatted_sources = self.format_sources(google_results)
                 
-                # Store Google results in the main database for future use
+                # Store Google results for future use
                 try:
                     for i, result in enumerate(google_results):
                         doc_id = f"google_{int(time.time())}_{i}"
                         snippet = result.get("snippet", "")
                         
-                        # Skip very short snippets
+                        # Skip short snippets
                         if len(snippet) < 50:
                             continue
                             
-                        # Get embedding for the snippet
+                        # Store in database
                         snippet_embedding = self.embedding_model.encode(snippet)
                         
-                        # Add to database
                         self.collection.add(
                             ids=[doc_id],
                             embeddings=[snippet_embedding.tolist()],
@@ -397,10 +394,10 @@ Answer only 'YES' if it is relevant and informative for the query, or 'NO' if it
                 "sources": []
             }
         
-        # Step 3: Generate Answer with Groq API
+        # Generate answer
         answer = self.generate_answer(question, context, source_type)
 
-        # Create response object
+        # Prepare response
         response = {
             "question": question,
             "answer": answer,
@@ -408,7 +405,7 @@ Answer only 'YES' if it is relevant and informative for the query, or 'NO' if it
             "sources": formatted_sources
         }
         
-        # Step 4: Store in cache for future reference
+        # Cache for future use
         self.store_in_cache(question, response)
 
         return response
@@ -416,7 +413,7 @@ Answer only 'YES' if it is relevant and informative for the query, or 'NO' if it
 def main():
     rag = MedicalRAG()
     
-    print("Welcome to the Enhanced Medical RAG System!")
+    print("Welcome to medicos!")
     print("This system now validates database responses and caches results.")
     
     while True:
